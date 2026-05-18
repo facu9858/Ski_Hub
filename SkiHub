@@ -1,16 +1,22 @@
-local redzlib = loadstring(game:HttpGet("https://githubusercontent.com"))()
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local Window = redzlib:MakeWindow({
-    Title = "SkiHub",
-    SubTitle = "Hello",
-    SaveFolder = "SkiHub config"
+local Window = Rayfield:CreateWindow({
+    Name = "SkiHub",
+    LoadingTitle = "SkiHub",
+    LoadingSubtitle = "by you",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "SkiHub",
+        FileName = "Config"
+    },
+    Discord = {
+        Enabled = false
+    },
+    KeySystem = false
 })
 
 -- TAB PLAYER
-local PlayerTab = Window:MakeTab({
-    Name = "Player",
-    Icon = "rbxassetid://7734053495"
-})
+local PlayerTab = Window:CreateTab("Player", 7734053495)
 
 -- ============================================================
 --  SPECTRAL HUB — test v13
@@ -65,15 +71,16 @@ spawn(function()
         while wait() do
             if Enabled then
                 local myChar = lp.Character
+
                 if myChar and myChar:FindFirstChild("HumanoidRootPart") then
                     local myHrp = myChar.HumanoidRootPart
+
                     local bestDist = math.huge
                     local bestName = nil
                     local bestPos  = nil
 
                     for _, p in pairs(Players:GetPlayers()) do
                         if p.Name ~= lp.Name
-                           and (workspace.Characters:FindFirstChild(p.Name) or workspace.Characters:FindFirstChild(p.DisplayName))
                            and p.Character
                            and p.Character:FindFirstChild("HumanoidRootPart")
                            and p.Character:FindFirstChild("Humanoid")
@@ -110,6 +117,7 @@ spawn(function()
                 if p.Name == Playersaimbot
                    and p.Character
                    and p.Character:FindFirstChild("HumanoidRootPart") then
+
                     PlayersPosition = p.Character.HumanoidRootPart.Position
                 end
             end
@@ -126,6 +134,7 @@ local function watchDeath(char)
 
     hum.Died:Connect(function()
         local was = Enabled
+
         Enabled         = false
         Playersaimbot   = nil
         PlayersPosition = nil
@@ -145,11 +154,12 @@ if lp.Character then
 end
 
 -- ============================================================
---  TOGGLE EN LA UI
+--  TOGGLE
 -- ============================================================
-PlayerTab:AddToggle({
+PlayerTab:CreateToggle({
     Name = "Silent Aim",
-    Default = false,
+    CurrentValue = false,
+    Flag = "SilentAim",
     Callback = function(Value)
         Enabled = Value
 
@@ -160,8 +170,9 @@ PlayerTab:AddToggle({
     end
 })
 
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "Spectral — Silent Aim v13",
-    Text = "Siempre apunta al más cercano",
-    Duration = 3,
+Rayfield:Notify({
+    Title = "Spectral Silent Aim",
+    Content = "Siempre apunta al más cercano",
+    Duration = 4,
+    Image = 7734053495
 })
