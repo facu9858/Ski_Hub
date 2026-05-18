@@ -1,220 +1,167 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local redzlib = loadstring(game:HttpGet("https://githubusercontent.com"))()
 
-local Window = Rayfield:CreateWindow({
-    Name = "BFSpy",
-    LoadingTitle = "BFSpy Loading",
-    LoadingSubtitle = "by you",
-    Theme = "Default",
-    DisableRayfieldPrompts = false,
-    DisableBuildWarnings = false,
-    ConfigurationSaving = {
-        Enabled = false,
-    },
-    Discord = {
-        Enabled = false,
-    },
-    KeySystem = false,
+local Window = redzlib:MakeWindow({
+    Title = "SkiHub",
+    SubTitle = "Hello",
+    SaveFolder = "SkiHub config"
+})
+
+-- TAB PLAYER
+local PlayerTab = Window:MakeTab({
+    Name = "Player",
+    Icon = "rbxassetid://7734053495"
 })
 
 -- ============================================================
---  TAB: PLAYER
--- ============================================================
-local PlayerTab = Window:CreateTab("Player", 4483362458)
-
--- ============================================================
---  BFSpy — DASH SPECIFIC
+--  SPECTRAL HUB — test v13
 -- ============================================================
 
-local Players    = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local lp         = Players.LocalPlayer
+local Players     = game:GetService("Players")
+local RunService  = game:GetService("RunService")
+local UserInput   = game:GetService("UserInputService")
+local Camera      = workspace.CurrentCamera
+local lp          = Players.LocalPlayer
 
-local log        = {}
-local recording  = false
-local startTime  = 0
+local Enabled         = false
+Playersaimbot         = nil
+PlayersPosition       = nil
 
-local function ts()
-    return string.format("%.4f", os.clock() - startTime)
-end
-
-local function addLog(line)
-    if not recording then return end
-    table.insert(log, "[" .. ts() .. "] " .. line)
-end
-
--- Hook FireServer / InvokeServer
+-- ============================================================
+--  HOOK
+-- ============================================================
 spawn(function()
     local mt = getrawmetatable(game)
-    setreadonly(mt, false)
     local oldNamecall = mt.__namecall
 
-    mt.__namecall = newcclosure(function(...)
-        if recording then
-            local method = getnamecallmethod()
-            local args = {...}
-            local self = args[1]
+    setreadonly(mt, false)
 
-            if method == "FireServer" or method == "InvokeServer" then
-                local ok, name = pcall(function() return self:GetFullName() end)
-                local parts = {}
-                for i = 2, #args do
-                    local v = args[i]
-                    local t = typeof(v)
-                    if t == "Vector3" then
-                        table.insert(parts, "V3:" .. tostring(v))
-                    elseif t == "CFrame" then
-                        table.insert(parts, "CF:" .. tostring(v.Position))
-                    elseif t == "string" or t == "number" or t == "boolean" then
-                        table.insert(parts, t .. ":" .. tostring(v))
-                    else
-                        table.insert(parts, t)
-                    end
-                end
-                addLog(method .. " | " .. (ok and name or "?") .. " | " .. table.concat(parts, " "))
-            end
+    mt.__namecall = newcclosure(function(...)
+        local method = getnamecallmethod()
+        local args = {...}
+
+        if tostring(method) ~= "FireServer"
+           or tostring(args[1]) ~= "RemoteEvent"
+           or tostring(args[2]) == "true"
+           or tostring(args[2]) == "false"
+           or Playersaimbot == nil then
+            return oldNamecall(...)
         end
-        return oldNamecall(...)
+
+        if type(args[2]) ~= "vector" then
+            args[2] = CFrame.new(PlayersPosition)
+        else
+            args[2] = PlayersPosition
+        end
+
+        return oldNamecall(unpack(args))
     end)
 end)
 
--- Observar objetos físicos en el personaje
-local function watchChar(char)
-    char.DescendantAdded:Connect(function(obj)
-        if not recording then return end
-        local class = obj.ClassName
-        if class == "BodyVelocity" or class == "LinearVelocity"
-           or class == "BodyGyro" or class == "BodyPosition"
-           or class == "BodyMover" or class == "BodyThrust"
-           or class == "AlignPosition" or class == "AlignOrientation"
-           or class == "VectorForce" or class == "AngularVelocity" then
+-- ============================================================
+--  TARGET
+-- ============================================================
+spawn(function()
+    pcall(function()
+        while wait() do
+            if Enabled then
+                local myChar = lp.Character
+                if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+                    local myHrp = myChar.HumanoidRootPart
+                    local bestDist = math.huge
+                    local bestName = nil
+                    local bestPos  = nil
 
-            local info = {}
-            table.insert(info, "PARENT:" .. obj.Parent.Name)
+                    for _, p in pairs(Players:GetPlayers()) do
+                        if p.Name ~= lp.Name
+                           and (workspace.Characters:FindFirstChild(p.Name) or workspace.Characters:FindFirstChild(p.DisplayName))
+                           and p.Character
+                           and p.Character:FindFirstChild("HumanoidRootPart")
+                           and p.Character:FindFirstChild("Humanoid")
+                           and p.Character.Humanoid.Health > 0 then
 
-            if class == "BodyVelocity" then
-                table.insert(info, "Vel:" .. tostring(obj.Velocity))
-                table.insert(info, "MaxForce:" .. tostring(obj.MaxForce))
-            elseif class == "LinearVelocity" then
-                table.insert(info, "VecVel:" .. tostring(obj.VectorVelocity))
-                table.insert(info, "MaxForce:" .. tostring(obj.MaxForce))
-            elseif class == "BodyGyro" then
-                table.insert(info, "CF:" .. tostring(obj.CFrame.Position))
-                table.insert(info, "MaxTorque:" .. tostring(obj.MaxTorque))
-            end
+                            local dist = (p.Character.HumanoidRootPart.Position - myHrp.Position).Magnitude
 
-            addLog("PHYSICS_OBJ | " .. class .. " | " .. table.concat(info, " "))
-
-            task.spawn(function()
-                task.wait(0.3)
-                if not recording then return end
-                if obj.Parent then
-                    if class == "BodyVelocity" then
-                        addLog("PHYSICS_UPDATE | " .. class .. " | Vel:" .. tostring(obj.Velocity))
-                    elseif class == "LinearVelocity" then
-                        addLog("PHYSICS_UPDATE | " .. class .. " | VecVel:" .. tostring(obj.VectorVelocity))
+                            if dist < bestDist then
+                                bestDist = dist
+                                bestName = p.Name
+                                bestPos  = p.Character.HumanoidRootPart.Position
+                            end
+                        end
                     end
-                else
-                    addLog("PHYSICS_REMOVED | " .. class)
+
+                    Playersaimbot   = bestName
+                    PlayersPosition = bestPos
                 end
-            end)
+            else
+                Playersaimbot   = nil
+                PlayersPosition = nil
+            end
+        end
+    end)
+end)
+
+-- ============================================================
+--  UPDATE POSITION
+-- ============================================================
+spawn(function()
+    while wait() do
+        if Playersaimbot ~= nil then
+            for _, p in pairs(Players:GetPlayers()) do
+                if p.Name == Playersaimbot
+                   and p.Character
+                   and p.Character:FindFirstChild("HumanoidRootPart") then
+                    PlayersPosition = p.Character.HumanoidRootPart.Position
+                end
+            end
+        end
+    end
+end)
+
+-- ============================================================
+--  ANTI BUG
+-- ============================================================
+local function watchDeath(char)
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+
+    hum.Died:Connect(function()
+        local was = Enabled
+        Enabled         = false
+        Playersaimbot   = nil
+        PlayersPosition = nil
+
+        task.wait(3)
+
+        if was then
+            Enabled = true
         end
     end)
 end
 
-if lp.Character then watchChar(lp.Character) end
-lp.CharacterAdded:Connect(function(c)
-    task.wait(0.2)
-    watchChar(c)
-end)
+lp.CharacterAdded:Connect(watchDeath)
 
--- Log de velocidad del HRP
-local lastPos = nil
-RunService.Heartbeat:Connect(function(dt)
-    if not recording then return end
-    local char = lp.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+if lp.Character then
+    watchDeath(lp.Character)
+end
 
-    if lastPos then
-        local dist = (hrp.Position - lastPos).Magnitude
-        local speed = dist / dt
-        if speed > 30 then
-            addLog("HRP_SPEED | " .. string.format("%.1f", speed) .. " studs/s")
+-- ============================================================
+--  TOGGLE EN LA UI
+-- ============================================================
+PlayerTab:AddToggle({
+    Name = "Silent Aim",
+    Default = false,
+    Callback = function(Value)
+        Enabled = Value
+
+        if not Enabled then
+            Playersaimbot   = nil
+            PlayersPosition = nil
         end
     end
-    lastPos = hrp.Position
-end)
-
--- ============================================================
---  CONTROLES EN RAYFIELD — TAB PLAYER
--- ============================================================
-
-local fileName = "dash_log"
-
-PlayerTab:CreateInput({
-    Name = "Nombre del archivo",
-    Placeholder = "dash_log",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(value)
-        if value ~= "" then
-            fileName = value:gsub("[^%w_%-]", "_")
-        end
-    end,
 })
 
-PlayerTab:CreateToggle({
-    Name = "⏺ Grabar",
-    CurrentValue = false,
-    Flag = "RecordingToggle",
-    Callback = function(value)
-        recording = value
-        if value then
-            log = {}
-            startTime = os.clock()
-            lastPos = nil
-        end
-    end,
-})
-
-PlayerTab:CreateButton({
-    Name = "💾 Guardar log",
-    Callback = function()
-        recording = false
-        Rayfield:Notify({
-            Title = "BFSpy Dash",
-            Content = "Guardando " .. #log .. " eventos...",
-            Duration = 2,
-        })
-        local name = fileName ~= "" and fileName or "dash_log"
-        if not isfolder("RivalsHub") then makefolder("RivalsHub") end
-        writefile("RivalsHub/" .. name .. ".txt",
-            "BFSpy Dash | " .. name .. " | " .. #log .. " eventos\n"
-            .. string.rep("=", 60) .. "\n"
-            .. table.concat(log, "\n"))
-        Rayfield:Notify({
-            Title = "BFSpy Dash",
-            Content = name .. ".txt guardado | " .. #log .. " eventos",
-            Duration = 4,
-        })
-    end,
-})
-
-PlayerTab:CreateButton({
-    Name = "🗑 Limpiar log",
-    Callback = function()
-        log = {}
-        recording = false
-        Rayfield:Notify({
-            Title = "BFSpy Dash",
-            Content = "Log limpiado.",
-            Duration = 2,
-        })
-    end,
-})
-
-Rayfield:Notify({
-    Title = "BFSpy Dash listo",
-    Content = "Captura: remotes, physics, velocidad HRP",
-    Duration = 4,
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "Spectral — Silent Aim v13",
+    Text = "Siempre apunta al más cercano",
+    Duration = 3,
 })
