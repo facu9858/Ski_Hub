@@ -1,178 +1,285 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
-local Window = Rayfield:CreateWindow({
-    Name = "SkiHub",
-    LoadingTitle = "SkiHub",
-    LoadingSubtitle = "by you",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "SkiHub",
-        FileName = "Config"
-    },
-    Discord = {
-        Enabled = false
-    },
-    KeySystem = false
-})
-
--- TAB PLAYER
-local PlayerTab = Window:CreateTab("Player", 7734053495)
-
 -- ============================================================
---  SPECTRAL HUB — test v13
+--  BFSpy — DASH SPECIFIC (RAYFIELD VERSION)
 -- ============================================================
 
-local Players     = game:GetService("Players")
-local RunService  = game:GetService("RunService")
-local UserInput   = game:GetService("UserInputService")
-local Camera      = workspace.CurrentCamera
-local lp          = Players.LocalPlayer
+local Players    = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local lp         = Players.LocalPlayer
 
-local Enabled         = false
-Playersaimbot         = nil
-PlayersPosition       = nil
+local log        = {}
+local recording  = false
+local startTime  = 0
+local lastPos    = nil
+
+local function ts()
+    return string.format("%.4f", os.clock() - startTime)
+end
+
+local function addLog(line)
+    if not recording then return end
+    table.insert(log, "[" .. ts() .. "] " .. line)
+end
 
 -- ============================================================
 --  HOOK
 -- ============================================================
 spawn(function()
     local mt = getrawmetatable(game)
-    local oldNamecall = mt.__namecall
-
     setreadonly(mt, false)
 
+    local oldNamecall = mt.__namecall
+
     mt.__namecall = newcclosure(function(...)
-        local method = getnamecallmethod()
-        local args = {...}
+        if recording then
+            local method = getnamecallmethod()
+            local args = {...}
+            local self = args[1]
 
-        if tostring(method) ~= "FireServer"
-           or tostring(args[1]) ~= "RemoteEvent"
-           or tostring(args[2]) == "true"
-           or tostring(args[2]) == "false"
-           or Playersaimbot == nil then
-            return oldNamecall(...)
-        end
+            if method == "FireServer" or method == "InvokeServer" then
+                local ok, name = pcall(function()
+                    return self:GetFullName()
+                end)
 
-        if type(args[2]) ~= "vector" then
-            args[2] = CFrame.new(PlayersPosition)
-        else
-            args[2] = PlayersPosition
-        end
+                local parts = {}
 
-        return oldNamecall(unpack(args))
-    end)
-end)
+                for i = 2, #args do
+                    local v = args[i]
+                    local t = typeof(v)
 
--- ============================================================
---  TARGET
--- ============================================================
-spawn(function()
-    pcall(function()
-        while wait() do
-            if Enabled then
-                local myChar = lp.Character
+                    if t == "Vector3" then
+                        table.insert(parts, "V3:" .. tostring(v))
 
-                if myChar and myChar:FindFirstChild("HumanoidRootPart") then
-                    local myHrp = myChar.HumanoidRootPart
+                    elseif t == "CFrame" then
+                        table.insert(parts, "CF:" .. tostring(v.Position))
 
-                    local bestDist = math.huge
-                    local bestName = nil
-                    local bestPos  = nil
+                    elseif t == "string"
+                        or t == "number"
+                        or t == "boolean" then
 
-                    for _, p in pairs(Players:GetPlayers()) do
-                        if p.Name ~= lp.Name
-                           and p.Character
-                           and p.Character:FindFirstChild("HumanoidRootPart")
-                           and p.Character:FindFirstChild("Humanoid")
-                           and p.Character.Humanoid.Health > 0 then
+                        table.insert(parts, t .. ":" .. tostring(v))
 
-                            local dist = (p.Character.HumanoidRootPart.Position - myHrp.Position).Magnitude
-
-                            if dist < bestDist then
-                                bestDist = dist
-                                bestName = p.Name
-                                bestPos  = p.Character.HumanoidRootPart.Position
-                            end
-                        end
+                    else
+                        table.insert(parts, t)
                     end
-
-                    Playersaimbot   = bestName
-                    PlayersPosition = bestPos
                 end
-            else
-                Playersaimbot   = nil
-                PlayersPosition = nil
+
+                addLog(method .. " | "
+                    .. (ok and name or "?")
+                    .. " | "
+                    .. table.concat(parts, " "))
             end
         end
+
+        return oldNamecall(...)
     end)
 end)
 
 -- ============================================================
---  UPDATE POSITION
+--  WATCH CHARACTER
 -- ============================================================
-spawn(function()
-    while wait() do
-        if Playersaimbot ~= nil then
-            for _, p in pairs(Players:GetPlayers()) do
-                if p.Name == Playersaimbot
-                   and p.Character
-                   and p.Character:FindFirstChild("HumanoidRootPart") then
+local function watchChar(char)
+    char.DescendantAdded:Connect(function(obj)
+        if not recording then return end
 
-                    PlayersPosition = p.Character.HumanoidRootPart.Position
-                end
+        local class = obj.ClassName
+
+        if class == "BodyVelocity"
+        or class == "LinearVelocity"
+        or class == "BodyGyro"
+        or class == "BodyPosition"
+        or class == "BodyMover"
+        or class == "BodyThrust"
+        or class == "AlignPosition"
+        or class == "AlignOrientation"
+        or class == "VectorForce"
+        or class == "AngularVelocity" then
+
+            local info = {}
+
+            table.insert(info, "PARENT:" .. obj.Parent.Name)
+
+            if class == "BodyVelocity" then
+                table.insert(info, "Vel:" .. tostring(obj.Velocity))
+                table.insert(info, "MaxForce:" .. tostring(obj.MaxForce))
+
+            elseif class == "LinearVelocity" then
+                table.insert(info, "VecVel:" .. tostring(obj.VectorVelocity))
+                table.insert(info, "MaxForce:" .. tostring(obj.MaxForce))
+
+            elseif class == "BodyGyro" then
+                table.insert(info, "CF:" .. tostring(obj.CFrame.Position))
+                table.insert(info, "MaxTorque:" .. tostring(obj.MaxTorque))
             end
-        end
-    end
-end)
 
--- ============================================================
---  ANTI BUG
--- ============================================================
-local function watchDeath(char)
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
+            addLog("PHYSICS_OBJ | "
+                .. class
+                .. " | "
+                .. table.concat(info, " "))
 
-    hum.Died:Connect(function()
-        local was = Enabled
+            task.spawn(function()
+                task.wait(0.3)
 
-        Enabled         = false
-        Playersaimbot   = nil
-        PlayersPosition = nil
+                if not recording then return end
 
-        task.wait(3)
+                if obj.Parent then
+                    if class == "BodyVelocity" then
+                        addLog("PHYSICS_UPDATE | "
+                            .. class
+                            .. " | Vel:"
+                            .. tostring(obj.Velocity))
 
-        if was then
-            Enabled = true
+                    elseif class == "LinearVelocity" then
+                        addLog("PHYSICS_UPDATE | "
+                            .. class
+                            .. " | VecVel:"
+                            .. tostring(obj.VectorVelocity))
+                    end
+                else
+                    addLog("PHYSICS_REMOVED | " .. class)
+                end
+            end)
         end
     end)
 end
-
-lp.CharacterAdded:Connect(watchDeath)
 
 if lp.Character then
-    watchDeath(lp.Character)
+    watchChar(lp.Character)
 end
 
--- ============================================================
---  TOGGLE
--- ============================================================
-PlayerTab:CreateToggle({
-    Name = "Silent Aim",
-    CurrentValue = false,
-    Flag = "SilentAim",
-    Callback = function(Value)
-        Enabled = Value
+lp.CharacterAdded:Connect(function(c)
+    task.wait(0.2)
+    watchChar(c)
+end)
 
-        if not Enabled then
-            Playersaimbot   = nil
-            PlayersPosition = nil
+-- ============================================================
+--  HRP SPEED LOGGER
+-- ============================================================
+RunService.Heartbeat:Connect(function(dt)
+    if not recording then return end
+
+    local char = lp.Character
+    if not char then return end
+
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    if lastPos then
+        local dist = (hrp.Position - lastPos).Magnitude
+        local speed = dist / dt
+
+        if speed > 30 then
+            addLog("HRP_SPEED | "
+                .. string.format("%.1f", speed)
+                .. " studs/s")
+        end
+    end
+
+    lastPos = hrp.Position
+end)
+
+-- ============================================================
+--  RAYFIELD UI
+-- ============================================================
+
+local FileName = "dash_log"
+
+PlayerTab:CreateInput({
+    Name = "Nombre del archivo",
+    PlaceholderText = "dash_log",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        if Text ~= "" then
+            FileName = Text
         end
     end
 })
 
+PlayerTab:CreateToggle({
+    Name = "Grabar Dash Spy",
+    CurrentValue = false,
+    Flag = "DashSpyRecorder",
+    Callback = function(Value)
+        recording = Value
+
+        if recording then
+            log = {}
+            startTime = os.clock()
+            lastPos = nil
+
+            Rayfield:Notify({
+                Title = "BFSpy Dash",
+                Content = "Grabación iniciada",
+                Duration = 3,
+                Image = 7734053495
+            })
+
+        else
+            Rayfield:Notify({
+                Title = "BFSpy Dash",
+                Content = "Grabación detenida",
+                Duration = 3,
+                Image = 7734053495
+            })
+        end
+    end
+})
+
+PlayerTab:CreateButton({
+    Name = "Guardar Log",
+    Callback = function()
+
+        recording = false
+
+        local name = FileName ~= "" and FileName or "dash_log"
+        name = name:gsub("[^%w_%-]", "_")
+
+        if not isfolder("RivalsHub") then
+            makefolder("RivalsHub")
+        end
+
+        writefile(
+            "RivalsHub/" .. name .. ".txt",
+
+            "BFSpy Dash | "
+            .. name
+            .. " | "
+            .. #log
+            .. " eventos\n"
+
+            .. string.rep("=", 60)
+            .. "\n"
+
+            .. table.concat(log, "\n")
+        )
+
+        Rayfield:Notify({
+            Title = "BFSpy Dash",
+            Content = name .. ".txt guardado",
+            Duration = 4,
+            Image = 7734053495
+        })
+    end
+})
+
+PlayerTab:CreateButton({
+    Name = "Limpiar Log",
+    Callback = function()
+
+        log = {}
+        recording = false
+
+        Rayfield:Notify({
+            Title = "BFSpy Dash",
+            Content = "Logs limpiados",
+            Duration = 3,
+            Image = 7734053495
+        })
+    end
+})
+
 Rayfield:Notify({
-    Title = "Spectral Silent Aim",
-    Content = "Siempre apunta al más cercano",
+    Title = "BFSpy Dash listo",
+    Content = "Captura remotes, physics y velocidad HRP",
     Duration = 4,
     Image = 7734053495
 })
