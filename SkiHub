@@ -1,9 +1,13 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
 local Window = Rayfield:CreateWindow({
-    Name = "Mi Script",
+    Name = "SkiHub",
     LoadingTitle = "Cargando...",
-    LoadingSubtitle = "by ChatGPT",
+    LoadingSubtitle = "by your mother",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = nil,
@@ -15,15 +19,37 @@ local Window = Rayfield:CreateWindow({
     KeySystem = false
 })
 
--- TAB PLAYER
+-- TAB
 local PlayerTab = Window:CreateTab("Player", 4483362458)
 
+-- SETTINGS
+_G.Settings = _G.Settings or {}
+local S = _G.Settings
+
+S.DashBoost = false
+S.DashMult = 2
+
+S.ESP = false
+S.ESPObjs = {}
+
+S.SilentAim = false
+S.AimGun = false
+S.SilentInstalled = false
+
+-- FUNCS
+local function getHRP()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function getHum()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+-- DASH BOOST
 local dashBoostActive, dashEnd, dashDir = false, 0, Vector3.zero
 local dashInstalled = false
-
-_G.Settings = _G.Settings or {}
-_G.Settings.DashBoost = false
-_G.Settings.DashMult = 2
 
 local function installDashBoost()
     if dashInstalled then return end
@@ -36,7 +62,7 @@ local function installDashBoost()
         setreadonly(mt, false)
 
         mt.__namecall = newcclosure(function(...)
-            if _G.Settings.DashBoost then
+            if S.DashBoost then
                 local method = getnamecallmethod()
                 local args = {...}
 
@@ -45,9 +71,8 @@ local function installDashBoost()
                 and args[2] == "Dodge"
                 and args[3] == nil then
 
-                    local char = game.Players.LocalPlayer.Character
-                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    local hrp = getHRP()
+                    local hum = getHum()
 
                     if hrp and hum then
                         local d = hum.MoveDirection
@@ -64,8 +89,8 @@ local function installDashBoost()
         setreadonly(mt, true)
     end)
 
-    game:GetService("RunService").Heartbeat:Connect(function(dt)
-        if not _G.Settings.DashBoost or not dashBoostActive then
+    RunService.Heartbeat:Connect(function(dt)
+        if not S.DashBoost or not dashBoostActive then
             return
         end
 
@@ -75,23 +100,211 @@ local function installDashBoost()
         end
 
         pcall(function()
-            local char = game.Players.LocalPlayer.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-
+            local hrp = getHRP()
             if not hrp then return end
 
-            hrp.CFrame = hrp.CFrame + dashDir * (200 * (_G.Settings.DashMult - 1) * dt)
+            hrp.CFrame = hrp.CFrame + dashDir * (200 * (S.DashMult - 1) * dt)
         end)
     end)
 end
 
--- TOGGLE
+-- ESP
+local function clearESP()
+    for _, obj in pairs(S.ESPObjs) do
+        pcall(function()
+            obj:Destroy()
+        end)
+    end
+
+    S.ESPObjs = {}
+end
+
+local function createESP(p)
+    if not p.Character or not p.Character:FindFirstChild("Head") then
+        return
+    end
+
+    local head = p.Character.Head
+
+    local bb = Instance.new("BillboardGui")
+    bb.Name = "SacredPvPESP"
+    bb.Adornee = head
+    bb.Size = UDim2.new(0,120,0,36)
+    bb.StudsOffset = Vector3.new(0,2.5,0)
+    bb.AlwaysOnTop = true
+    bb.Parent = head
+
+    local lbl = Instance.new("TextLabel", bb)
+    lbl.Size = UDim2.new(1,0,0.6,0)
+    lbl.BackgroundTransparency = 1
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 13
+    lbl.TextColor3 = Color3.fromRGB(0,190,240)
+    lbl.TextStrokeTransparency = 0.3
+    lbl.Text = p.Name
+
+    local distLbl = Instance.new("TextLabel", bb)
+    distLbl.Size = UDim2.new(1,0,0.4,0)
+    distLbl.Position = UDim2.new(0,0,0.6,0)
+    distLbl.BackgroundTransparency = 1
+    distLbl.Font = Enum.Font.Gotham
+    distLbl.TextSize = 10
+    distLbl.TextColor3 = Color3.fromRGB(150,160,200)
+    distLbl.TextStrokeTransparency = 0.3
+
+    table.insert(S.ESPObjs, bb)
+
+    task.spawn(function()
+        while bb and bb.Parent and S.ESP do
+            task.wait(0.2)
+
+            pcall(function()
+                local myHRP = getHRP()
+                local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+
+                if myHRP and hrp then
+                    local dist = math.floor((hrp.Position - myHRP.Position).Magnitude)
+                    distLbl.Text = dist .. "m"
+                end
+            end)
+        end
+
+        pcall(function()
+            bb:Destroy()
+        end)
+    end)
+end
+
+local function updateESP()
+    clearESP()
+
+    if not S.ESP then
+        return
+    end
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            createESP(p)
+        end
+    end
+end
+
+Players.PlayerAdded:Connect(function(p)
+    if S.ESP then
+        p.CharacterAdded:Connect(function()
+            task.wait(1)
+            createESP(p)
+        end)
+    end
+end)
+
+-- SILENT AIM
+local function getNearestPlayer()
+    local closest = nil
+    local shortestDistance = math.huge
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer
+        and p.Character
+        and p.Character:FindFirstChild("HumanoidRootPart")
+        and p.Character:FindFirstChildOfClass("Humanoid")
+        and p.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+
+            local hrp = p.Character.HumanoidRootPart
+            local myHRP = getHRP()
+
+            if myHRP then
+                local distance = (hrp.Position - myHRP.Position).Magnitude
+
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closest = p
+                end
+            end
+        end
+    end
+
+    return closest
+end
+
+local function installSilentAim()
+    if S.SilentInstalled then return end
+    S.SilentInstalled = true
+
+    task.spawn(function()
+        while true do
+            task.wait()
+
+            if S.SilentAim or S.AimGun then
+                pcall(function()
+                    local t = getNearestPlayer()
+
+                    if t
+                    and t.Character
+                    and t.Character:FindFirstChild("HumanoidRootPart") then
+
+                        S.SilentTarget = t.Name
+                        S.SilentPos = t.Character.HumanoidRootPart.Position
+                    else
+                        S.SilentTarget = nil
+                        S.SilentPos = nil
+                    end
+                end)
+            else
+                S.SilentTarget = nil
+                S.SilentPos = nil
+            end
+        end
+    end)
+
+    task.spawn(function()
+        local mt = getrawmetatable(game)
+        local oldNC = mt.__namecall
+
+        setreadonly(mt, false)
+
+        mt.__namecall = newcclosure(function(...)
+            local method = getnamecallmethod()
+            local args = {...}
+
+            if (S.SilentAim or S.AimGun)
+            and S.SilentPos
+            and tostring(method) == "FireServer"
+            and tostring(args[1]) == "RemoteEvent"
+            and tostring(args[2]) ~= "true"
+            and tostring(args[2]) ~= "false" then
+
+                if typeof(args[2]) == "Vector3" then
+                    args[2] = S.SilentPos
+                    return oldNC(unpack(args))
+
+                elseif typeof(args[2]) == "CFrame" then
+                    args[2] = CFrame.new(S.SilentPos)
+                    return oldNC(unpack(args))
+
+                elseif S.AimGun
+                and type(args[2]) == "string"
+                and args[2] == "TAP" then
+
+                    return oldNC(args[1], "TAP", S.SilentPos, select(4, ...))
+                end
+            end
+
+            return oldNC(...)
+        end)
+
+        setreadonly(mt, true)
+    end)
+end
+
+-- UI
+
 PlayerTab:CreateToggle({
     Name = "Dash Boost",
     CurrentValue = false,
     Flag = "DashBoost",
     Callback = function(Value)
-        _G.Settings.DashBoost = Value
+        S.DashBoost = Value
 
         if Value then
             installDashBoost()
@@ -99,7 +312,6 @@ PlayerTab:CreateToggle({
     end
 })
 
--- SLIDER
 PlayerTab:CreateSlider({
     Name = "Dash Multiplier",
     Range = {1, 10},
@@ -108,6 +320,46 @@ PlayerTab:CreateSlider({
     CurrentValue = 2,
     Flag = "DashMultiplier",
     Callback = function(Value)
-        _G.Settings.DashMult = Value
+        S.DashMult = Value
+    end
+})
+
+PlayerTab:CreateToggle({
+    Name = "Player ESP",
+    CurrentValue = false,
+    Flag = "ESP",
+    Callback = function(Value)
+        S.ESP = Value
+        updateESP()
+
+        if not Value then
+            clearESP()
+        end
+    end
+})
+
+PlayerTab:CreateToggle({
+    Name = "Silent Aim",
+    CurrentValue = false,
+    Flag = "SilentAim",
+    Callback = function(Value)
+        S.SilentAim = Value
+
+        if Value then
+            installSilentAim()
+        end
+    end
+})
+
+PlayerTab:CreateToggle({
+    Name = "Aim Gun",
+    CurrentValue = false,
+    Flag = "AimGun",
+    Callback = function(Value)
+        S.AimGun = Value
+
+        if Value then
+            installSilentAim()
+        end
     end
 })
