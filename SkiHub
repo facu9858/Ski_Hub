@@ -5,9 +5,9 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
 local Window = Rayfield:CreateWindow({
-    Name = "SkiHub",
+    Name = "Mi Script",
     LoadingTitle = "Cargando...",
-    LoadingSubtitle = "by your mother",
+    LoadingSubtitle = "by ChatGPT",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = nil,
@@ -19,7 +19,7 @@ local Window = Rayfield:CreateWindow({
     KeySystem = false
 })
 
--- TAB
+-- TAB PLAYER
 local PlayerTab = Window:CreateTab("Player", 4483362458)
 
 -- SETTINGS
@@ -198,13 +198,14 @@ Players.PlayerAdded:Connect(function(p)
     end
 end)
 
--- SILENT AIM
+-- SILENT AIM (FIX ALLIES)
 local function getNearestPlayer()
     local closest = nil
     local shortestDistance = math.huge
 
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer
+        and p.Team ~= LocalPlayer.Team
         and p.Character
         and p.Character:FindFirstChild("HumanoidRootPart")
         and p.Character:FindFirstChildOfClass("Humanoid")
@@ -314,52 +315,4 @@ PlayerTab:CreateToggle({
 
 PlayerTab:CreateSlider({
     Name = "Dash Multiplier",
-    Range = {1, 10},
-    Increment = 0.5,
-    Suffix = "x",
-    CurrentValue = 2,
-    Flag = "DashMultiplier",
-    Callback = function(Value)
-        S.DashMult = Value
-    end
-})
-
-PlayerTab:CreateToggle({
-    Name = "Player ESP",
-    CurrentValue = false,
-    Flag = "ESP",
-    Callback = function(Value)
-        S.ESP = Value
-        updateESP()
-
-        if not Value then
-            clearESP()
-        end
-    end
-})
-
-PlayerTab:CreateToggle({
-    Name = "Silent Aim",
-    CurrentValue = false,
-    Flag = "SilentAim",
-    Callback = function(Value)
-        S.SilentAim = Value
-
-        if Value then
-            installSilentAim()
-        end
-    end
-})
-
-PlayerTab:CreateToggle({
-    Name = "Aim Gun",
-    CurrentValue = false,
-    Flag = "AimGun",
-    Callback = function(Value)
-        S.AimGun = Value
-
-        if Value then
-            installSilentAim()
-        end
-    end
-})
+    Range = {
