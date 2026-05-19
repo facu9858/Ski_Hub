@@ -1,7 +1,29 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Mi Script",
+    LoadingTitle = "Cargando...",
+    LoadingSubtitle = "by ChatGPT",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = nil,
+        FileName = "Config"
+    },
+    Discord = {
+        Enabled = false
+    },
+    KeySystem = false
+})
+
+-- TAB PLAYER
 local PlayerTab = Window:CreateTab("Player", 4483362458)
 
 local dashBoostActive, dashEnd, dashDir = false, 0, Vector3.zero
 local dashInstalled = false
+
+_G.Settings = _G.Settings or {}
+_G.Settings.DashBoost = false
+_G.Settings.DashMult = 2
 
 local function installDashBoost()
     if dashInstalled then return end
@@ -10,10 +32,11 @@ local function installDashBoost()
     task.spawn(function()
         local mt = getrawmetatable(game)
         local oldNC = mt.__namecall
+
         setreadonly(mt, false)
 
         mt.__namecall = newcclosure(function(...)
-            if S.DashBoost then
+            if _G.Settings.DashBoost then
                 local method = getnamecallmethod()
                 local args = {...}
 
@@ -22,8 +45,9 @@ local function installDashBoost()
                 and args[2] == "Dodge"
                 and args[3] == nil then
 
-                    local hrp = getHRP()
-                    local hum = getHum()
+                    local char = game.Players.LocalPlayer.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
 
                     if hrp and hum then
                         local d = hum.MoveDirection
@@ -36,10 +60,12 @@ local function installDashBoost()
 
             return oldNC(...)
         end)
+
+        setreadonly(mt, true)
     end)
 
-    RunService.Heartbeat:Connect(function(dt)
-        if not S.DashBoost or not dashBoostActive then
+    game:GetService("RunService").Heartbeat:Connect(function(dt)
+        if not _G.Settings.DashBoost or not dashBoostActive then
             return
         end
 
@@ -49,34 +75,39 @@ local function installDashBoost()
         end
 
         pcall(function()
-            local hrp = getHRP()
+            local char = game.Players.LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
             if not hrp then return end
 
-            hrp.CFrame = hrp.CFrame + dashDir * (200 * (S.DashMult - 1) * dt)
+            hrp.CFrame = hrp.CFrame + dashDir * (200 * (_G.Settings.DashMult - 1) * dt)
         end)
     end)
 end
 
+-- TOGGLE
 PlayerTab:CreateToggle({
     Name = "Dash Boost",
     CurrentValue = false,
     Flag = "DashBoost",
     Callback = function(Value)
-        S.DashBoost = Value
-        installDashBoost()
+        _G.Settings.DashBoost = Value
+
+        if Value then
+            installDashBoost()
+        end
     end
 })
 
+-- SLIDER
 PlayerTab:CreateSlider({
     Name = "Dash Multiplier",
     Range = {1, 10},
     Increment = 0.5,
     Suffix = "x",
     CurrentValue = 2,
-    Flag = "DashMult",
+    Flag = "DashMultiplier",
     Callback = function(Value)
-        S.DashMult = Value
+        _G.Settings.DashMult = Value
     end
 })
-
-S.DashMult = 2
