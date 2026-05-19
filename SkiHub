@@ -19,7 +19,7 @@ local Window = Rayfield:CreateWindow({
     KeySystem = false
 })
 
--- TAB PLAYER
+-- TAB
 local PlayerTab = Window:CreateTab("Player", 4483362458)
 
 -- SETTINGS
@@ -198,27 +198,41 @@ Players.PlayerAdded:Connect(function(p)
     end
 end)
 
--- SILENT AIM (FIX ALLIES)
+-- SILENT AIM FIXED
+local function isEnemy(p)
+    if not p or p == LocalPlayer then
+        return false
+    end
+
+    if LocalPlayer.Team ~= nil and p.Team ~= nil then
+        if p.Team == LocalPlayer.Team then
+            return false
+        end
+    end
+
+    return true
+end
+
 local function getNearestPlayer()
     local closest = nil
     local shortestDistance = math.huge
 
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer
-        and p.Team ~= LocalPlayer.Team
+    for _, p in ipairs(Players:GetPlayers()) do
+        if isEnemy(p)
         and p.Character
-        and p.Character:FindFirstChild("HumanoidRootPart")
-        and p.Character:FindFirstChildOfClass("Humanoid")
-        and p.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+        and p.Character:FindFirstChild("HumanoidRootPart") then
 
-            local hrp = p.Character.HumanoidRootPart
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
             local myHRP = getHRP()
 
-            if myHRP then
-                local distance = (hrp.Position - myHRP.Position).Magnitude
+            if hum and hum.Health > 0 and myHRP then
+                local dist = (
+                    p.Character.HumanoidRootPart.Position
+                    - myHRP.Position
+                ).Magnitude
 
-                if distance < shortestDistance then
-                    shortestDistance = distance
+                if dist < shortestDistance then
+                    shortestDistance = dist
                     closest = p
                 end
             end
@@ -315,4 +329,52 @@ PlayerTab:CreateToggle({
 
 PlayerTab:CreateSlider({
     Name = "Dash Multiplier",
-    Range = {
+    Range = {1, 10},
+    Increment = 0.5,
+    Suffix = "x",
+    CurrentValue = 2,
+    Flag = "DashMultiplier",
+    Callback = function(Value)
+        S.DashMult = Value
+    end
+})
+
+PlayerTab:CreateToggle({
+    Name = "Player ESP",
+    CurrentValue = false,
+    Flag = "ESP",
+    Callback = function(Value)
+        S.ESP = Value
+        updateESP()
+
+        if not Value then
+            clearESP()
+        end
+    end
+})
+
+PlayerTab:CreateToggle({
+    Name = "Silent Aim",
+    CurrentValue = false,
+    Flag = "SilentAim",
+    Callback = function(Value)
+        S.SilentAim = Value
+
+        if Value then
+            installSilentAim()
+        end
+    end
+})
+
+PlayerTab:CreateToggle({
+    Name = "Aim Gun",
+    CurrentValue = false,
+    Flag = "AimGun",
+    Callback = function(Value)
+        S.AimGun = Value
+
+        if Value then
+            installSilentAim()
+        end
+    end
+})
