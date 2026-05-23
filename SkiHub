@@ -2,16 +2,13 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UIS = game:GetService("UserInputService")
 local lp = Players.LocalPlayer
-local camera = workspace.CurrentCamera
 
+local soruAimEnabled = false
 local silentAimEnabled = false
-local cameraLockEnabled = false
 local selectedRange = 300
 local targetName = ""
 local teamCheck = true
-local lockKey = Enum.KeyCode.E
 
 local espEnabled = false
 local espObjs = {}
@@ -73,13 +70,13 @@ local function getTarget()
     return closest
 end
 
--- SILENT AIM
+-- SORU AIM (Mouse.Hit hook - para que el Flashstep vaya al enemigo)
 local mt = getrawmetatable(game)
 local oldIndex = mt.__index
 setreadonly(mt, false)
 
 mt.__index = newcclosure(function(self, key)
-    if silentAimEnabled and self == lp:GetMouse() then
+    if soruAimEnabled and self == lp:GetMouse() then
         local enemy = getTarget()
         if enemy and enemy.Character then
             local eHRP = enemy.Character:FindFirstChild("HumanoidRootPart")
@@ -97,36 +94,35 @@ end)
 
 setreadonly(mt, true)
 
--- CAMERA LOCK (sigue al enemigo con la cámara, puedes moverla libremente cuando está OFF)
-RunService.RenderStepped:Connect(function()
-    if not cameraLockEnabled then return end
-    local enemy = getTarget()
-    if not enemy or not enemy.Character then return end
-    local eHRP = enemy.Character:FindFirstChild("HumanoidRootPart")
-    if not eHRP then return end
-    -- Solo apunta la cámara al enemigo, sin bloquear movimiento
-    local camPos = camera.CFrame.Position
-    camera.CFrame = CFrame.lookAt(camPos, eHRP.Position)
-end)
+-- SILENT AIM (FireServer hook - para ataques/habilidades)
+local silentTarget = nil
+local silentPos = nil
+local silentInstalled = false
 
--- TECLA para activar/desactivar Camera Lock
-UIS.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.KeyCode == lockKey then
-        cameraLockEnabled = not cameraLockEnabled
-        Rayfield:Notify({
-            Title = cameraLockEnabled and "🎥 Camera Lock ON" or "🎥 Camera Lock OFF",
-            Content = cameraLockEnabled and "Cámara siguiendo al enemigo." or "Cámara libre.",
-            Duration = 2,
-            Image = 4483362458,
-        })
-    end
-end)
+local function installSilentAim()
+    if silentInstalled then return end
+    silentInstalled = true
 
--- DASH BOOST
-local function installDashBoost()
-    if dashInstalled then return end
-    dashInstalled = true
+    task.spawn(function()
+        while true do
+            task.wait()
+            if silentAimEnabled then
+                pcall(function()
+                    local t = getTarget()
+                    if t and t.Character and t.Character:FindFirstChild("HumanoidRootPart") then
+                        silentTarget = t.Name
+                        silentPos = t.Character.HumanoidRootPart.Position
+                    else
+                        silentTarget = nil
+                        silentPos = nil
+                    end
+                end)
+            else
+                silentTarget = nil
+                silentPos = nil
+            end
+        end
+    end)
 
     task.spawn(function()
         local mt2 = getrawmetatable(game)
@@ -134,6 +130,40 @@ local function installDashBoost()
         setreadonly(mt2, false)
 
         mt2.__namecall = newcclosure(function(...)
+            local method = getnamecallmethod()
+            local args = {...}
+
+            if silentAimEnabled
+            and silentPos
+            and tostring(method) == "FireServer"
+            and tostring(args[1]) == "RemoteEvent" then
+                if typeof(args[2]) == "Vector3" then
+                    args[2] = silentPos
+                    return oldNC(unpack(args))
+                elseif typeof(args[2]) == "CFrame" then
+                    args[2] = CFrame.new(silentPos)
+                    return oldNC(unpack(args))
+                end
+            end
+
+            return oldNC(...)
+        end)
+
+        setreadonly(mt2, true)
+    end)
+end
+
+-- DASH BOOST
+local function installDashBoost()
+    if dashInstalled then return end
+    dashInstalled = true
+
+    task.spawn(function()
+        local mt3 = getrawmetatable(game)
+        local oldNC2 = mt3.__namecall
+        setreadonly(mt3, false)
+
+        mt3.__namecall = newcclosure(function(...)
             if dashBoostEnabled then
                 local method = getnamecallmethod()
                 local args = {...}
@@ -151,10 +181,10 @@ local function installDashBoost()
                     end
                 end
             end
-            return oldNC(...)
+            return oldNC2(...)
         end)
 
-        setreadonly(mt2, true)
+        setreadonly(mt3, true)
     end)
 
     RunService.Heartbeat:Connect(function(dt)
@@ -244,9 +274,9 @@ end)
 
 -- RAYFIELD UI
 local Window = Rayfield:CreateWindow({
-    Name = "Silent Aim | Blox Fruits",
-    LoadingTitle = "Silent Aim",
-    LoadingSubtitle = "Soru Edition",
+    Name = "Ski Hub | Blox Fruits",
+    LoadingTitle = "loading",
+    LoadingSubtitle = "by idk",
     Theme = "Ocean",
     DisableRayfieldPrompts = false,
     DisableBuildWarnings = false,
@@ -254,18 +284,18 @@ local Window = Rayfield:CreateWindow({
     KeySystem = false,
 })
 
--- TAB SILENT AIM
-local AimTab = Window:CreateTab("🎯 Silent Aim", 4483362458)
-AimTab:CreateSection("Aimbot")
+-- TAB SORU AIM
+local SoruTab = Window:CreateTab("⚡ Soru Aim", 4483362458)
+SoruTab:CreateSection("Flashstep al enemigo")
 
-AimTab:CreateToggle({
-    Name = "Insta Aim",
+SoruTab:CreateToggle({
+    Name = "Soru Aim",
     CurrentValue = false,
-    Flag = "InstaAim",
+    Flag = "SoruAim",
     Callback = function(v)
-        silentAimEnabled = v
+        soruAimEnabled = v
         Rayfield:Notify({
-            Title = v and "🎯 Insta Aim ON" or "❌ Insta Aim OFF",
+            Title = v and "⚡ Soru Aim ON" or "❌ Soru Aim OFF",
             Content = v and "Flashstep irá al enemigo." or "Desactivado.",
             Duration = 2,
             Image = 4483362458,
@@ -273,8 +303,32 @@ AimTab:CreateToggle({
     end,
 })
 
+-- TAB SILENT AIM
+local AimTab = Window:CreateTab("🎯 Silent Aim", 4483362458)
+AimTab:CreateSection("Ataques al enemigo")
+
 AimTab:CreateToggle({
-    Name = "Team Check (no apuntar aliados)",
+    Name = "Silent Aim",
+    CurrentValue = false,
+    Flag = "SilentAim",
+    Callback = function(v)
+        silentAimEnabled = v
+        if v then installSilentAim() end
+        Rayfield:Notify({
+            Title = v and "🎯 Silent Aim ON" or "❌ Silent Aim OFF",
+            Content = v and "Ataques apuntando al enemigo." or "Desactivado.",
+            Duration = 2,
+            Image = 4483362458,
+        })
+    end,
+})
+
+-- OPCIONES COMPARTIDAS
+local OpcionesTab = Window:CreateTab("⚙️ Opciones", 4483362458)
+OpcionesTab:CreateSection("General")
+
+OpcionesTab:CreateToggle({
+    Name = "Team Check (ignorar aliados)",
     CurrentValue = true,
     Flag = "TeamCheck",
     Callback = function(v)
@@ -282,48 +336,19 @@ AimTab:CreateToggle({
     end,
 })
 
-AimTab:CreateSection("Camera Lock")
-
-AimTab:CreateToggle({
-    Name = "Camera Lock",
-    CurrentValue = false,
-    Flag = "CameraLock",
-    Callback = function(v)
-        cameraLockEnabled = v
-        Rayfield:Notify({
-            Title = v and "🎥 Camera Lock ON" or "🎥 Camera Lock OFF",
-            Content = v and "Cámara siguiendo al enemigo." or "Cámara libre.",
-            Duration = 2,
-            Image = 4483362458,
-        })
-    end,
-})
-
-AimTab:CreateKeybind({
-    Name = "Tecla Camera Lock",
-    CurrentKeybind = "E",
-    HoldToInteract = false,
-    Flag = "LockKey",
-    Callback = function(keybind)
-        lockKey = Enum.KeyCode[keybind]
-    end,
-})
-
-AimTab:CreateSection("Opciones")
-
-AimTab:CreateSlider({
+OpcionesTab:CreateSlider({
     Name = "Rango de detección",
     Range = {50, 500},
     Increment = 10,
     Suffix = " studs",
     CurrentValue = 300,
-    Flag = "AimbotFOV",
+    Flag = "Range",
     Callback = function(v)
         selectedRange = v
     end,
 })
 
-AimTab:CreateInput({
+OpcionesTab:CreateInput({
     Name = "Target específico",
     PlaceholderText = "Vacío = más cercano",
     RemoveTextAfterFocusLost = false,
@@ -373,7 +398,7 @@ PlayerTab:CreateSlider({
 
 Rayfield:Notify({
     Title = "Script Cargado ✅",
-    Content = "Presiona E para activar Camera Lock.",
+    Content = "Soru Aim y Silent Aim separados.",
     Duration = 4,
     Image = 4483362458,
 })
