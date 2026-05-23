@@ -19,6 +19,7 @@ local dashBoostActive = false
 local dashEnd = 0
 local dashDir = Vector3.zero
 local dashInstalled = false
+local silentInstalled = false
 
 -- FUNCIONES BASE
 local function getHRP()
@@ -70,7 +71,38 @@ local function getTarget()
     return closest
 end
 
--- SORU AIM (Mouse.Hit hook - para que el Flashstep vaya al enemigo)
+-- Obtener color y bando del jugador
+local function getTeamInfo(p)
+    if p.Team then
+        local teamName = p.Team.Name
+        if teamName:lower():find("pirat") then
+            return "Pirata", Color3.fromRGB(255, 60, 60)
+        elseif teamName:lower():find("marin") then
+            return "Marino", Color3.fromRGB(0, 190, 240)
+        else
+            return teamName, p.Team.TeamColor.Color
+        end
+    end
+    return "Sin bando", Color3.fromRGB(200, 200, 200)
+end
+
+-- Obtener nivel del jugador
+local function getPlayerLevel(p)
+    local char = p.Character
+    if not char then return "?" end
+    -- Blox Fruits guarda el nivel en un valor dentro del personaje o leaderstats
+    local leaderstats = p:FindFirstChild("leaderstats")
+    if leaderstats then
+        local level = leaderstats:FindFirstChild("Level") or leaderstats:FindFirstChild("Lv") or leaderstats:FindFirstChild("level")
+        if level then return tostring(level.Value) end
+    end
+    -- Alternativa: buscar en el personaje
+    local levelVal = char:FindFirstChild("Level") or char:FindFirstChild("Lv")
+    if levelVal then return tostring(levelVal.Value) end
+    return "?"
+end
+
+-- SORU AIM
 local mt = getrawmetatable(game)
 local oldIndex = mt.__index
 setreadonly(mt, false)
@@ -94,10 +126,8 @@ end)
 
 setreadonly(mt, true)
 
--- SILENT AIM (FireServer hook - para ataques/habilidades)
-local silentTarget = nil
+-- SILENT AIM
 local silentPos = nil
-local silentInstalled = false
 
 local function installSilentAim()
     if silentInstalled then return end
@@ -110,15 +140,12 @@ local function installSilentAim()
                 pcall(function()
                     local t = getTarget()
                     if t and t.Character and t.Character:FindFirstChild("HumanoidRootPart") then
-                        silentTarget = t.Name
                         silentPos = t.Character.HumanoidRootPart.Position
                     else
-                        silentTarget = nil
                         silentPos = nil
                     end
                 end)
             else
-                silentTarget = nil
                 silentPos = nil
             end
         end
@@ -199,7 +226,7 @@ local function installDashBoost()
     end)
 end
 
--- ESP
+-- ESP MEJORADO
 local function clearESP()
     for _, obj in pairs(espObjs) do
         pcall(function() obj:Destroy() end)
@@ -212,30 +239,61 @@ local function createESP(p)
     local head = p.Character.Head
 
     local bb = Instance.new("BillboardGui")
-    bb.Name = "SilentAimESP"
+    bb.Name = "MiScriptESP"
     bb.Adornee = head
-    bb.Size = UDim2.new(0, 120, 0, 36)
-    bb.StudsOffset = Vector3.new(0, 2.5, 0)
+    bb.Size = UDim2.new(0, 160, 0, 90)
+    bb.StudsOffset = Vector3.new(0, 3, 0)
     bb.AlwaysOnTop = true
     bb.Parent = head
 
-    local lbl = Instance.new("TextLabel", bb)
-    lbl.Size = UDim2.new(1, 0, 0.6, 0)
-    lbl.BackgroundTransparency = 1
-    lbl.Font = Enum.Font.GothamBold
-    lbl.TextSize = 13
-    lbl.TextColor3 = Color3.fromRGB(0, 190, 240)
-    lbl.TextStrokeTransparency = 0.3
-    lbl.Text = p.Name
+    local frame = Instance.new("Frame", bb)
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundTransparency = 1
 
-    local distLbl = Instance.new("TextLabel", bb)
-    distLbl.Size = UDim2.new(1, 0, 0.4, 0)
-    distLbl.Position = UDim2.new(0, 0, 0.6, 0)
-    distLbl.BackgroundTransparency = 1
-    distLbl.Font = Enum.Font.Gotham
-    distLbl.TextSize = 10
-    distLbl.TextColor3 = Color3.fromRGB(150, 160, 200)
-    distLbl.TextStrokeTransparency = 0.3
+    -- Nombre
+    local nameLbl = Instance.new("TextLabel", frame)
+    nameLbl.Size = UDim2.new(1, 0, 0.25, 0)
+    nameLbl.Position = UDim2.new(0, 0, 0, 0)
+    nameLbl.BackgroundTransparency = 1
+    nameLbl.Font = Enum.Font.GothamBold
+    nameLbl.TextSize = 13
+    nameLbl.TextStrokeTransparency = 0.3
+    nameLbl.Text = p.Name
+
+    -- Bando
+    local teamLbl = Instance.new("TextLabel", frame)
+    teamLbl.Size = UDim2.new(1, 0, 0.25, 0)
+    teamLbl.Position = UDim2.new(0, 0, 0.25, 0)
+    teamLbl.BackgroundTransparency = 1
+    teamLbl.Font = Enum.Font.GothamBold
+    teamLbl.TextSize = 12
+    teamLbl.TextStrokeTransparency = 0.3
+
+    -- Vida
+    local hpLbl = Instance.new("TextLabel", frame)
+    hpLbl.Size = UDim2.new(1, 0, 0.25, 0)
+    hpLbl.Position = UDim2.new(0, 0, 0.5, 0)
+    hpLbl.BackgroundTransparency = 1
+    hpLbl.Font = Enum.Font.Gotham
+    hpLbl.TextSize = 11
+    hpLbl.TextColor3 = Color3.fromRGB(100, 255, 100)
+    hpLbl.TextStrokeTransparency = 0.3
+
+    -- Distancia y nivel
+    local infoLbl = Instance.new("TextLabel", frame)
+    infoLbl.Size = UDim2.new(1, 0, 0.25, 0)
+    infoLbl.Position = UDim2.new(0, 0, 0.75, 0)
+    infoLbl.BackgroundTransparency = 1
+    infoLbl.Font = Enum.Font.Gotham
+    infoLbl.TextSize = 11
+    infoLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+    infoLbl.TextStrokeTransparency = 0.3
+
+    -- Aplicar color de bando
+    local bandoName, bandoColor = getTeamInfo(p)
+    nameLbl.TextColor3 = bandoColor
+    teamLbl.TextColor3 = bandoColor
+    teamLbl.Text = "【" .. bandoName .. "】"
 
     table.insert(espObjs, bb)
 
@@ -245,10 +303,35 @@ local function createESP(p)
             pcall(function()
                 local myHRP = getHRP()
                 local eHRP = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+                local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
+
                 if myHRP and eHRP then
                     local dist = math.floor((eHRP.Position - myHRP.Position).Magnitude)
-                    distLbl.Text = dist .. "m"
+                    local level = getPlayerLevel(p)
+                    infoLbl.Text = "Lv." .. level .. "  |  " .. dist .. "m"
                 end
+
+                if hum then
+                    local hp = math.floor(hum.Health)
+                    local maxHp = math.floor(hum.MaxHealth)
+                    hpLbl.Text = "❤️ " .. hp .. " / " .. maxHp
+
+                    -- Color de vida: verde → amarillo → rojo
+                    local ratio = hum.Health / hum.MaxHealth
+                    if ratio > 0.6 then
+                        hpLbl.TextColor3 = Color3.fromRGB(100, 255, 100)
+                    elseif ratio > 0.3 then
+                        hpLbl.TextColor3 = Color3.fromRGB(255, 200, 0)
+                    else
+                        hpLbl.TextColor3 = Color3.fromRGB(255, 60, 60)
+                    end
+                end
+
+                -- Actualizar bando por si cambia
+                local newBando, newColor = getTeamInfo(p)
+                nameLbl.TextColor3 = newColor
+                teamLbl.TextColor3 = newColor
+                teamLbl.Text = "【" .. newBando .. "】"
             end)
         end
         pcall(function() bb:Destroy() end)
@@ -276,7 +359,7 @@ end)
 local Window = Rayfield:CreateWindow({
     Name = "Ski Hub | Blox Fruits",
     LoadingTitle = "loading",
-    LoadingSubtitle = "by idk",
+    LoadingSubtitle = "by sykx0_",
     Theme = "Ocean",
     DisableRayfieldPrompts = false,
     DisableBuildWarnings = false,
@@ -323,7 +406,7 @@ AimTab:CreateToggle({
     end,
 })
 
--- OPCIONES COMPARTIDAS
+-- TAB OPCIONES
 local OpcionesTab = Window:CreateTab("⚙️ Opciones", 4483362458)
 OpcionesTab:CreateSection("General")
 
@@ -398,7 +481,7 @@ PlayerTab:CreateSlider({
 
 Rayfield:Notify({
     Title = "Script Cargado ✅",
-    Content = "Soru Aim y Silent Aim separados.",
+    Content = "ESP mejorado con bando, vida y nivel.",
     Duration = 4,
     Image = 4483362458,
 })
